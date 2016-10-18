@@ -2,14 +2,22 @@
 
 use strict;
 use IO::Socket::INET;
-use Getopt::Long qw(GetOptions);
+use Getopt::Long qw(GetOptions Configure);
+use Pod::Usage qw(pod2usage);
 
+Configure( 'auto_help' );
 my ($command);
-GetOptions (
+my %options;
+GetOptions ( \%options,
     'on'  => sub { $command = "on" },
     'off' => sub { $command = "off" },
     'shutdown' => sub { $command = "shutdown" },
-) or die "Usage: $0 --command (on/off/shutdown)\n";
+    'port|p=i',
+) || pod2usage(1);
+
+pod2usage(1) unless ( $command );
+
+my $serverport = $options{port} || 7890;
 
 # auto-flush on socket
 $| = 1;
@@ -17,14 +25,13 @@ $| = 1;
 # create a connecting socket
 my $socket = new IO::Socket::INET (
     PeerHost => 'localhost',
-    PeerPort => '7890',
-    Proto => 'tcp',
+    PeerPort => $serverport,
+    Proto    => 'tcp',
 );
-die "cannot connect to the server $!\n" unless $socket;
-print "Connected to the server\n";
+die "Can't connect to the server: $!\n" unless $socket;
+print "Connected to the server on port $serverport\n";
  
 # data to send to a server
-my $req = 'hello world';
 my $size = $socket->send( $command );
 print "SEND: command \"$command\" ($size bytes)\n";
  
@@ -38,4 +45,21 @@ print "RESULT: $response\n";
  
 $socket->close();
 
-1;
+__END__
+
+=head1 NAME
+
+arduino_usb_client - Arduino Relay Switch via Serial Server
+
+=head1 SYNOPSIS
+
+  arduino_usb_client.pl [options]
+
+  Options:
+    --help      Brief help message
+    --on        Turn relay on connected Arduino on
+    --off       Turn relay on connected Arduino off
+    --shutdown  Shut down server
+    --port      Local TCP port that server is listening on [7890]
+
+=cut
