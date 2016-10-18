@@ -3,7 +3,8 @@
 use strict;
 use IO::Socket::INET;
 use Device::SerialPort;
-use Getopt::Long qw(GetOptions);
+use Getopt::Long qw(GetOptions Configure);
+use Pod::Usage qw(pod2usage);
 
 my %sys_commands = (
   'shutdown' => 1,
@@ -14,32 +15,40 @@ my %usb_commands = (
 );
 my $run = 1;  ## shutdown flag
 
-my ($portname );
-GetOptions (
-    'usbportname|p=s' => \$portname,
-) or die "Usage: $0 --usbportname Arduino_USB_Port_Device\n";
+Configure( 'auto_help' );
+my %options;
+GetOptions ( \%options,
+    'usbportname|u=s',
+    'port|p=i',
+) || pod2usage(1);
+
+pod2usage(1) unless ( $options{usbportname} );
+
+my $localport = $options{port} || 7890;
+my $rs232port = $options{usbportname};
+my $rs232baud = 19200;  ## Doesn't like higher speeds
 
 # creating a listening socket
 my $socket = IO::Socket::INET->new(
     LocalAddr => 'localhost',
-    LocalPort => '7890',
-    Proto => 'tcp',
-    Listen => 5,
-    Reuse => 1
+    LocalPort => $localport,
+    Proto     => 'tcp',
+    Listen    => 5,
+    Reuse     => 1
 ) or die "cannot create socket $!\n";
-print "SERVER started on port 7890\n";
+print "SERVER started on port $localport\n";
 
 # Set up the serial port
-my $usbport = Device::SerialPort->new( $portname ) or
-    die "Can't open $portname: $!\n";
+my $usbport = Device::SerialPort->new( $rs232port ) or
+    die "Can't open $rs232port: $!\n";
 
-$usbport->databits(8);
-$usbport->baudrate(19200);
-$usbport->parity("none");
-$usbport->stopbits(1);
-$usbport->dtr_active(0);
+$usbport->databits( 8 );
+$usbport->baudrate( $rs232baud );
+$usbport->parity( "none" );
+$usbport->stopbits( 1 );
+$usbport->dtr_active( 0 );
 sleep 1;
-print "Connected to $portname\n";
+print "Connected to $rs232port at $rs232baud bps\n";
 
 sleep 1;
 print "Accepting client connections...\n\n";
@@ -102,9 +111,24 @@ sub command {
     my $command = shift;
 
     my $aout = $usbport->write( "$command" );
-    print "Sent command \"$command\" to $portname ($aout bytes)\n";
+    print "Sent command \"$command\" to $rs232port ($aout bytes)\n";
 
     return $aout;
 }
 
-1;
+__END__
+
+=head1 NAME
+
+arduino_usb_server - Arduino Relay Switch via USB serial Server. Controlled by arduino_usb_client.
+
+=head1 SYNOPSIS
+
+  arduino_usb_server.pl [options]
+
+  Options:
+    --help          Brief help message
+    --usbportname   Arduino USB serial port [REQUIRED]
+    --port          Local TCP port for server to listen on [7890]
+
+=cut
